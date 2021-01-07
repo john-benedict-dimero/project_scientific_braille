@@ -42,53 +42,61 @@ pins_RPI = [
 
 
 # Pins used in Expansion unit MCP for Keyboard
+# Added pins of 6 and 7 for additional 
+# functionality {6: delete, 7: toggle on/off volume}
 pins_MCP = [
     0, 1, 2,
     3, 4, 5,
+    6, 7,
     ]
 
 
 # Pins used in Expansion unit for linear movement
+# pins_MCP_stepper 1 was initially 6,7,8,9
 pins_MCP_stepper1 = [
-    6, 7, 8, 9,
+    8, 9, 10, 11
     ]
 
 
 # Pins used in Expansion unit for rotation
+# pins_MCP_stepper 2 was initially 10,11
 pins_MCP_stepper2 = [
-    10, 11,
+    12, 13,
     ]
 
+filename = 'databasev2.txt'  # file generated for discs database
+input_expression = ''  # initializing the mathematical expression
+database_discs = []  # initializing the disc positioning
 
-pointer1 = 0
-pointer2 = 0
-filename = 'databasev2.txt'
-input_expression = ''
-database_discs = []
-display = None
-root = None
-frame = None
-entry = None
-control_device = 'PCM'
+display = None # initializing GUI display
+root = None  # initializing GUI root
+frame = None  # initializing GUI frame
+entry = None  # initializing GUI entry
+
+control_device = 'PCM'  # initializing PCM for audio control
+
+run = True  # initializing run to True
+
+mcp = MCP230XX.MCP23017()  # setting up Extension GPIO IC
+GPIO.setwarnings(False)  # setting up GPIO inputs in RPI-BOARD
+GPIO.setmode(GPIO.BOARD)  # setting up GPIO inputs in RPI-BOARD
+
+engine = pyttsx3.init()  # initializing text to speech
+
+m = alsaaudio.Mixer(control_device)  # initializing audio control
 
 
-mcp = MCP230XX.MCP23017()        #Setting up Extension GPIO IC
-GPIO.setwarnings(False)          #Setting up GPIO inputs in RPI-BOARD
-GPIO.setmode(GPIO.BOARD)         #Setting up GPIO inputs in RPI-BOARD
 
-engine = pyttsx3.init()          #Initializing text to speech
-run = True                       #Initializing run to True
-
-
-def audio_off_on_control(toggle_pin):
-    
-    if toggle_pin == True:
-        m.setmute(1)
-    else:
-        m.setmute(0)
-    
 
 def initialization(RPI, MCP, STP1, STP2):
+	""" This function initializes all the general purpose
+	input/output pins that is used by the prototype.
+	This includes setting the RPI GPIOs and MCP GPIOs to function
+	as either input or output. 
+	"""
+
+    # Iterating over pins and setting whether they
+    # will function as input or output
     for x in RPI:
         GPIO.setup(x, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
     
@@ -103,11 +111,14 @@ def initialization(RPI, MCP, STP1, STP2):
     for t in STP2:
         mcp.setup(t, MCP230XX.GPIO.OUT)
         mcp.output(t, False)
-    
-    m = alsaaudio.Mixer(control_device)
-    
-    
+
+       
 def initialize_database(filename, listinput):
+	""" This function initializes the database for the
+	positioning of the discs and stores it value and 
+	saves it to filename.
+	"""
+
     file = open(filename, encoding = 'utf8')
     
     for line in file:
@@ -119,15 +130,39 @@ def initialize_database(filename, listinput):
             
     file.close()
     
+
 def close_database(filename, listinput):
+	""" This function closes the open database and saves
+	the value of the position of the database discs to 
+	the filename.
+	"""
+
     file = open(filename, 'w+', encoding = 'utf8')
     
     for w in range(12):
         file.write(str(listinput[w]) + '\n')
         
     file.close()
+
+
+def audio_off_on_control(toggle_pin):
+    """ This function mutes and unmute the audio built in 
+    the raspberry pi with regards to the state of the 
+    toggle pin.
+    """
+
+    if toggle_pin == True:
+        m.setmute(1)
+    else:
+        m.setmute(0)
+    
     
 def computation(input_expression):
+	""" This function evaluates the mathematical expression
+	and strips the answer in the limit of 10 digits and
+	convert it to string.
+	"""
+
     try:
         output = eval(input_expression)
         if len(str(output)) > 10:
@@ -159,11 +194,16 @@ def computation(input_expression):
     except:
         return 'Syntax Error'
     
+
 def mov_nema_motor(pin_list):
-    DIR = pin_list[0] # Direction GPIO Pin
-    STEP = pin_list[1] # Step GPIO Pin
-    CW = 1 # Clockwise Rotation
-    CCW = 0 # Counterclockwise Rotation
+	""" This function moves the NEMA stepper motor
+	in the clockwise direction with 15 steps
+	"""
+
+    DIR = pin_list[0]  # Direction GPIO Pin
+    STEP = pin_list[1]  # Step GPIO Pin
+    CW = 1  # Clockwise Rotation
+    CCW = 0  # Counterclockwise Rotation
     
     # every step must be calculated by ((360/13)/1.8)
     # SPR = ((360/13)/1.8)
@@ -180,11 +220,17 @@ def mov_nema_motor(pin_list):
         mcp.output(STEP, 0)
         time.sleep(delay)
 
+
 def mov_nema_motor_rev(pin_list):
-    DIR = pin_list[0] # Direction GPIO Pin
-    STEP = pin_list[1] # Step GPIO Pin
-    CW = 1 # Clockwise Rotation
-    CCW = 0 # Counterclockwise Rotation
+	""" This function moves the NEMA stepper motor 
+	in the counter clockwise direction with 15 
+	steps.
+	"""
+
+    DIR = pin_list[0]  # Direction GPIO Pin
+    STEP = pin_list[1]  # Step GPIO Pin
+    CW = 1  # Clockwise Rotation
+    CCW = 0  # Counterclockwise Rotation
     
     # every step must be calculated by ((360/13)/1.8)
     # SPR = ((360/13)/1.8)
@@ -201,7 +247,13 @@ def mov_nema_motor_rev(pin_list):
         mcp.output(STEP, 0)
         time.sleep(delay)
     
+
 def movement_motor(pin_list):
+	""" This function moves the 28BYJ-48 stepper motor
+	in the clockwise direction using a step sequence
+	and referring 53 steps per disc section rotation 
+	"""
+
     one_disc = 53
     
     seq = [
@@ -220,7 +272,14 @@ def movement_motor(pin_list):
             for pin in range(4):
                 mcp.output(pin_list[pin], seq[halfstep][pin])
                 
+
 def motor_reverse(pin_list):
+	""" This function moves the 28BYJ-48 stepper motor
+	in the counter-clockwise direction using a step 
+	sequence and referring 53 steps per disc section 
+	rotation. 
+	"""
+
     one_disc = 53
     
     seq_rev = [
@@ -238,8 +297,14 @@ def motor_reverse(pin_list):
         for halfstep in range(8):
             for pin in range(4):
                 mcp.output(pin_list[pin], seq_rev[halfstep][pin])
-                
+  
+
 def rotation(discs_pos, output_exp, pins1, pins2):
+	"""This function defines on how much the rotation of the 
+	discs will be made. It is also responsible for the 
+	linear movement of the motor.
+	"""
+
     output = output_exp.zfill(10)
     initial = 10
     start = 0
@@ -300,15 +365,23 @@ def rotation(discs_pos, output_exp, pins1, pins2):
     time.sleep(0.01)
 
 
-
-
+# Initializing GPIO pins and the database
 initialize_database(filename, database_discs)
 initialization(pins_RPI, pins_MCP, pins_MCP_stepper1, pins_MCP_stepper2)
 
+# Start up message when the program runs
 engine.say('Hello there, Welcome to Braille!')
 engine.runAndWait()
 
+
 def poll():
+	""" This function host the backend program for running the GUI
+	and all the function of the keyboard. This will be the main 
+	program that integrates all the function together to make the
+	prototype function as a whole
+	"""
+
+
     global display
     global root
     global frame
@@ -507,22 +580,26 @@ def poll():
             pass
         
     root.after(10, poll)
-        
+
+
+# Initializing the root class for the GUI        
 root = tk.Tk()
 root.title("Braille Display")
 root.geometry("500x100")
 root.resizable(False, False)
 
+# Creating a frame object with root as parameter
 frame = tk.Frame(root)
 frame.option_add("*Font", "arial 20 bold")
 frame.pack(expand = 1, fill = "both")
 
+# Creating a display for the GUI calculator
 display = tk.StringVar()
 display.set("Enter an expression..")
 entry = tk.Entry(root, relief="ridge", textvariable=display, justify='right'
                  , bd=20, bg="powder blue").pack(side="top", expand=1, fill="both")
 
-
+# Running the GUI with some delay 10 
 root.after(10, poll)
 root.mainloop()
 
