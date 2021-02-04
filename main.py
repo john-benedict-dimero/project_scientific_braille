@@ -43,7 +43,7 @@ pins_RPI = [
 
 # Pins used in Expansion unit MCP for Keyboard
 # Added pins of 6 and 7 for additional 
-# functionality {6: delete, 7: toggle on/off volume}
+# functionality {6: delete, 7: button on/off volume}
 pins_MCP = [
     0, 1, 2,
     3, 4, 5,
@@ -54,14 +54,14 @@ pins_MCP = [
 # Pins used in Expansion unit for linear movement
 # pins_MCP_stepper 1 was initially 6,7,8,9
 pins_MCP_stepper1 = [
-    8, 9, 10, 11
+    8, 9
     ]
 
 
 # Pins used in Expansion unit for rotation
 # pins_MCP_stepper 2 was initially 10,11
 pins_MCP_stepper2 = [
-    12, 13,
+    10, 11
     ]
 
 filename = 'databasev2.txt'  # file generated for discs database
@@ -84,6 +84,9 @@ GPIO.setmode(GPIO.BOARD)  # setting up GPIO inputs in RPI-BOARD
 engine = pyttsx3.init()  # initializing text to speech
 
 m = alsaaudio.Mixer(control_device)  # initializing audio control
+
+audio_control = 0  # Initially setting the volume to unmute
+mech_mode = True  # Initially setting the mechanical mode to ON
 
 
 
@@ -145,16 +148,21 @@ def close_database(filename, listinput):
     file.close()
 
 
-def audio_off_on_control(toggle_pin):
+def audio_off_on_control(speech, audio_control, m):
     """ This function mutes and unmute the audio built in 
     the raspberry pi with regards to the state of the 
-    toggle pin.
+    button pushed. First press will mute and another 
+    press will unmute
     """
 
-    if toggle_pin == True:
+    if audio_control == 1:
+        speech.say('Volume off')  # Indicates if it will be turned off by speech
+        speech.runAndWait()
         m.setmute(1)
-    else:
+    elif audio_control == 0:
         m.setmute(0)
+        speech.say('Volume on')  # Indicates if it will be turned on by speech
+        speech.runAndWait()
     
     
 def computation(input_expression):
@@ -246,58 +254,54 @@ def mov_nema_motor_rev(pin_list):
         time.sleep(delay)
         mcp.output(STEP, 0)
         time.sleep(delay)
-    
 
-def movement_motor(pin_list):
-	""" This function moves the 28BYJ-48 stepper motor
-	in the clockwise direction using a step sequence
-	and referring 53 steps per disc section rotation 
-	"""
+def mov_nema_linear(pin_list):
+    """ This function moves the NEMA stepper motor 
+	in linear movement from left to right
+    """
 
-    one_disc = 53
+    DIR = pin_list[0] # Direction GPIO Pin
+    STEP = pin_list[1] # Step GPIO Pin
+    CW = 1 # Clockwise Rotation
+    CCW = 0 # Counterclockwise Rotation
     
-    seq = [
-    [1,0,0,0],
-    [1,1,0,0],
-    [0,1,0,0],
-    [0,1,1,0],
-    [0,0,1,0],
-    [0,0,1,1],
-    [0,0,0,1],
-    [1,0,0,1], 
-    ]
+    # every step is calibrated to be 20 steps per discs
+    SPR = 20
     
-    for i in range(one_disc):
-        for halfstep in range(8):
-            for pin in range(4):
-                mcp.output(pin_list[pin], seq[halfstep][pin])
-                
+    step_count = SPR
+    delay = 0.01
+    
+    mcp.output(DIR, CW)
+    
+    for x in range(step_count):
+        mcp.output(STEP, 1)
+        time.sleep(delay)
+        mcp.output(STEP, 0)
+        time.sleep(delay)
 
-def motor_reverse(pin_list):
-	""" This function moves the 28BYJ-48 stepper motor
-	in the counter-clockwise direction using a step 
-	sequence and referring 53 steps per disc section 
-	rotation. 
-	"""
+def mov_nema_linear_rev(pin_list):
+    """ This function moves the NEMA stepper motor 
+	in linear movement from right to left
+    """
 
-    one_disc = 53
+    DIR = pin_list[0] # Direction GPIO Pin
+    STEP = pin_list[1] # Step GPIO Pin
+    CW = 1 # Clockwise Rotation
+    CCW = 0 # Counterclockwise Rotation
     
-    seq_rev = [
-    [1,0,0,1],
-    [0,0,0,1],
-    [0,0,1,1],
-    [0,0,1,0],
-    [0,1,1,0],
-    [0,1,0,0],
-    [1,1,0,0],
-    [1,0,0,0], 
-    ]
+    # every step is calibrated to be 20 steps per discs
+    SPR = 20
     
-    for i in range(one_disc):
-        for halfstep in range(8):
-            for pin in range(4):
-                mcp.output(pin_list[pin], seq_rev[halfstep][pin])
-  
+    step_count = SPR
+    delay = 0.01
+    
+    mcp.output(DIR, CCW)
+    
+    for x in range(step_count):
+        mcp.output(STEP, 1)
+        time.sleep(delay)
+        mcp.output(STEP, 0)
+        time.sleep(delay)
 
 def rotation(discs_pos, output_exp, pins1, pins2):
 	"""This function defines on how much the rotation of the 
@@ -358,11 +362,13 @@ def rotation(discs_pos, output_exp, pins1, pins2):
         movement_motor(pins1)
         start += 1
         time.sleep(0.01)
-    
-    time.sleep(0.01)
-    for i in range(9):
-        motor_reverse(pins1)
-    time.sleep(0.01)
+
+
+    "Disabled feature: when done -- go back to original position"
+    # time.sleep(0.01)
+    # for i in range(9):
+    #     motor_reverse(pins1)
+    # time.sleep(0.01)
 
 
 # Initializing GPIO pins and the database
@@ -381,12 +387,14 @@ def poll():
 	prototype function as a whole
 	"""
 
-
+    # Accessing the parameters globally
     global display
     global root
     global frame
     global entry
     global input_expression
+    global audio_control
+    global mech_mode
         
     if GPIO.input(21) == True:
         output = computation(input_expression)
@@ -394,8 +402,9 @@ def poll():
         engine.say(output)
         engine.runAndWait()
         if output != 'Syntax Error':
-            '''rotation(database_discs, output, pins_MCP_stepper1, pins_MCP_stepper2)
-            print(database_discs)'''
+            if mech_mode:
+                rotation(database_discs, output, pins_MCP_stepper1, pins_MCP_stepper2)
+                print(database_discs)
             engine.say('Done')
             engine.runAndWait()
         else:
@@ -406,6 +415,17 @@ def poll():
         display.set(input_expression)
         engine.say('Clear')
         engine.runAndWait()
+        if GPIO.input(7):
+            time.sleep(5)
+            if GPIO.input(7):
+                if mech_mode == True:
+                    mech_mode = False
+                    engine.say('Mechanical Mode Off')
+                    engine.runAndWait()
+                else:
+                    mech_mode = True
+                    engine.say('Mechanical Mode On')
+                    engine.runAndWait()
 
     else:   
         if GPIO.input(11) == True:
@@ -497,6 +517,12 @@ def poll():
             display.set(input_expression)
             engine.say('0')
             engine.runAndWait()
+            if GPIO.input(18):
+                time.sleep(1.50)
+                if GPIO.input(18):
+                    engine.say('Linear Motor Moving')
+                    engine.runAndWait()
+                    mov_nema_linear_rev(pins_MCP_stepper1)
 
         elif GPIO.input(22) == True:
             input_expression += '('
@@ -575,7 +601,20 @@ def poll():
             display.set(input_expression)
             engine.say('inverse tangent')
             engine.runAndWait()
-
+            
+        elif mcp.input(6) == False:
+            input_expression = input_expression[:-1:]
+            display.set(input_expression)
+            engine.say('delete')
+            engine.runAndWait()
+        
+        elif mcp.input(7) == False:
+            audio_control += 1
+            if audio_control > 1:
+                audio_control = 0
+            audio_off_on_control(engine, audio_control, m)
+            # print(audio_control)
+            
         else:
             pass
         
@@ -599,7 +638,7 @@ display.set("Enter an expression..")
 entry = tk.Entry(root, relief="ridge", textvariable=display, justify='right'
                  , bd=20, bg="powder blue").pack(side="top", expand=1, fill="both")
 
-# Running the GUI with some delay 10 
+# Running the GUI with some delay 10
 root.after(10, poll)
 root.mainloop()
 
