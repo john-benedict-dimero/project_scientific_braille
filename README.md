@@ -27,7 +27,7 @@ Since the mechanical assembly is designed to start at the most significant digit
 The algorithm is designed such that when the more significant braille disc is rotated, the resulting position of the remaining discs that was rotated due to the effect of the rotation of the more significant braille disc is recorded in a database. When the braille disc next to the more significant braille disc will be rotated, a database will be referred to, and from this information will be rotated accordingly.
 
 A dictionary or a key-value pair was used to determine the position of each digit in the braille disc (looks something like this):
-'''disc_positioning = {
+```disc_positioning = {
         '0' : 0,
         '1' : 1,
         '2' : 2,
@@ -41,5 +41,5 @@ A dictionary or a key-value pair was used to determine the position of each digi
         '.' : 10,
         '-' : 11,
         'e' : 12
-        }'''
+        }```
 
