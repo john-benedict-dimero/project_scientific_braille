@@ -19,3 +19,27 @@ This project also provides a basic GUI that served as a screen display for the m
 * Pressing '0' Button for at least 3 seconds will make the linear motor move (from right-to-left) one disc space
 
 # Algorithm for Rotation
+### Output of mathematical expression will serve as input for the rotation
+The output of the mathematical expression will be trimmed to 10 digits (add 0 in the beginning to fill to 10 digits). A file database will be used to store the current location of the braille discs (initially they are all at 0 position). This file database will be used to keep track of the location of the braille discs
+
+Since the mechanical assembly is designed to start at the most significant digit (most significant braille disc) to the least significant digit (leas significant braille disc), the software/program must compensate.
+
+The algorithm is designed such that when the more significant braille disc is rotated, the resulting position of the remaining discs that was rotated due to the effect of the rotation of the more significant braille disc is recorded in a database. When the braille disc next to the more significant braille disc will be rotated, a database will be referred to, and from this information will be rotated accordingly.
+
+A dictionary or a key-value pair was used to determine the position of each digit in the braille disc (looks something like this):
+'''disc_positioning = {
+        '0' : 0,
+        '1' : 1,
+        '2' : 2,
+        '3' : 3,
+        '4' : 4,
+        '5' : 5,
+        '6' : 6,
+        '7' : 7,
+        '8' : 8,
+        '9' : 9,
+        '.' : 10,
+        '-' : 11,
+        'e' : 12
+        }'''
+
